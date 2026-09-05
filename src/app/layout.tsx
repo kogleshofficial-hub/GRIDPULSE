@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -31,12 +32,33 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Link
+          href="/judge"
+          aria-label="Open the GRIDPULSE judge brief"
+          style={{
+            position: "fixed",
+            right: "14px",
+            bottom: "14px",
+            zIndex: 50,
+            border: "1px solid rgba(104,167,255,.45)",
+            background: "rgba(8,9,11,.92)",
+            color: "#68a7ff",
+            padding: "8px 10px",
+            textDecoration: "none",
+            fontSize: "9px",
+            fontWeight: 900,
+            letterSpacing: ".08em",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          JUDGE BRIEF ↗
+        </Link>
+      </body>
     </html>
   );
 }
