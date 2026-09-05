@@ -5,7 +5,7 @@ import { FormEvent, useState } from "react";
 
 const initialForm = { region: "", latitude: "", longitude: "", status: "outage" };
 
-type ReportState = "idle" | "sending" | "success" | "error";
+type ReportState = "idle" | "locating" | "sending" | "success" | "error";
 
 function messageForError(error: unknown) {
   const value = error instanceof Error ? error.message : "Unable to submit report.";
@@ -13,28 +13,72 @@ function messageForError(error: unknown) {
   if (normalized.includes("rate limit")) return "Too many reports were submitted recently. Please wait a moment and try again.";
   if (normalized.includes("validation failed")) return "Please check the region and coordinates, then try again.";
   if (normalized.includes("outside accepted window")) return "The observation timestamp is outside the accepted reporting window.";
+  if (normalized.includes("permission")) return "Location permission was blocked. Allow location access in your browser, then try again.";
+  if (normalized.includes("unavailable")) return "Your device could not provide a location right now. You can enter coordinates manually.";
+  if (normalized.includes("timeout")) return "Location lookup took too long. Try again or enter coordinates manually.";
+  if (normalized.includes("not supported")) return "This browser does not support location lookup. You can enter coordinates manually.";
   return normalized;
 }
 
 export default function ReportPage() {
   const [state, setState] = useState<ReportState>("idle");
   const [message, setMessage] = useState("");
+  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
   const [formValues, setFormValues] = useState(initialForm);
+
+  function updateField(field: keyof typeof initialForm, value: string) {
+    setFormValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function useMyLocation() {
+    if (state === "locating" || state === "sending") return;
+    setMessage("");
+    setState("locating");
+
+    if (!("geolocation" in navigator)) {
+      setState("error");
+      setMessage("Location is not supported by this browser. You can enter coordinates manually.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setFormValues((current) => ({
+          ...current,
+          latitude: latitude.toFixed(6),
+          longitude: longitude.toFixed(6),
+          region: current.region || "Auto-detected",
+        }));
+        setLocationAccuracy(Math.round(accuracy));
+        setState("idle");
+        setMessage(`Location found. Accuracy about ${Math.round(accuracy)} m. Review it before submitting.`);
+      },
+      (error) => {
+        setState("error");
+        if (error.code === 1) setMessage("Location permission was blocked. Allow location access in your browser, then try again.");
+        else if (error.code === 2) setMessage("Your device could not provide a location right now. You can enter coordinates manually.");
+        else if (error.code === 3) setMessage("Location lookup took too long. Try again or enter coordinates manually.");
+        else setMessage("Unable to retrieve your location. You can enter coordinates manually.");
+      },
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 },
+    );
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (state === "sending") return;
+    if (state === "sending" || state === "locating") return;
     setState("sending");
     setMessage("");
     const form = new FormData(event.currentTarget);
-    const region = String(form.get("region") ?? "").trim();
+    const region = String(form.get("region") ?? "").trim() || "Auto-detected";
     const latitude = Number(form.get("latitude"));
     const longitude = Number(form.get("longitude"));
     const status = String(form.get("status"));
 
-    if (!region || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
       setState("error");
-      setMessage("Please enter a valid region, latitude, and longitude.");
+      setMessage("Please use your location button or enter a valid latitude and longitude.");
       return;
     }
 
@@ -65,6 +109,7 @@ export default function ReportPage() {
       setState("success");
       setMessage(`Observation accepted. Validation state: ${result.report?.validation_status ?? "pending"}.`);
       setFormValues(initialForm);
+      setLocationAccuracy(null);
       event.currentTarget.reset();
     } catch (error) {
       setState("error");
@@ -83,34 +128,38 @@ export default function ReportPage() {
         </p>
 
         <form className="report-form" onSubmit={submit} aria-describedby="report-help">
-          <div id="report-help" className="form-hint">Use the location where the disruption was observed. Coordinates are checked before ingestion.</div>
+          <div id="report-help" className="form-hint">Use your current location to fill the coordinates automatically. You can review or edit them before submitting.</div>
+          <button className="ghost-button" type="button" onClick={useMyLocation} disabled={state === "locating" || state === "sending"} aria-busy={state === "locating"}>
+            {state === "locating" ? "LOCATING…" : "USE MY LOCATION"}
+          </button>
+          {locationAccuracy !== null && <div className="form-hint" role="status">DEVICE LOCATION READY · ±{locationAccuracy} M</div>}
           <label>
-            REGION
-            <input name="region" value={formValues.region} onChange={(event) => setFormValues((current) => ({ ...current, region: event.target.value }))} required maxLength={120} autoComplete="address-level2" placeholder="e.g. Kuching" />
+            REGION <span aria-hidden="true">OPTIONAL</span>
+            <input name="region" value={formValues.region} onChange={(event) => updateField("region", event.target.value)} maxLength={120} autoComplete="address-level2" placeholder="e.g. Kuching · or leave blank" />
           </label>
           <div className="two-fields">
             <label>
               LATITUDE
-              <input name="latitude" value={formValues.latitude} onChange={(event) => setFormValues((current) => ({ ...current, latitude: event.target.value }))} type="number" inputMode="decimal" step="any" min="-90" max="90" required placeholder="1.5533" />
+              <input name="latitude" value={formValues.latitude} onChange={(event) => updateField("latitude", event.target.value)} type="number" inputMode="decimal" step="any" min="-90" max="90" required placeholder="Use my location" />
             </label>
             <label>
               LONGITUDE
-              <input name="longitude" value={formValues.longitude} onChange={(event) => setFormValues((current) => ({ ...current, longitude: event.target.value }))} type="number" inputMode="decimal" step="any" min="-180" max="180" required placeholder="110.3592" />
+              <input name="longitude" value={formValues.longitude} onChange={(event) => updateField("longitude", event.target.value)} type="number" inputMode="decimal" step="any" min="-180" max="180" required placeholder="Use my location" />
             </label>
           </div>
           <label>
             OBSERVATION STATUS
-            <select name="status" value={formValues.status} onChange={(event) => setFormValues((current) => ({ ...current, status: event.target.value }))}>
+            <select name="status" value={formValues.status} onChange={(event) => updateField("status", event.target.value)}>
               <option value="outage">Outage</option>
               <option value="degraded">Degraded</option>
               <option value="restored">Restored</option>
               <option value="unknown">Unknown</option>
             </select>
           </label>
-          <button className="submit-report" type="submit" disabled={state === "sending"} aria-busy={state === "sending"}>
+          <button className="submit-report" type="submit" disabled={state === "sending" || state === "locating"} aria-busy={state === "sending"}>
             {state === "sending" ? "INGESTING…" : "SUBMIT OBSERVATION"}
           </button>
-          {message && <div className={`form-message ${state}`} role={state === "error" ? "alert" : "status"} aria-live="polite">{message}</div>}
+          {message && <div className={`form-message ${state === "success" ? "success" : "error"}`} role={state === "error" ? "alert" : "status"} aria-live="polite">{message}</div>}
         </form>
 
         <div className="report-principles">
