@@ -30,6 +30,9 @@ export const metadata: Metadata = {
   ],
   category: "technology",
   alternates: { canonical: "/" },
+  verification: {
+    google: "LI6z3Avdq6RsVP2faZ6nlhcbRwvnMIdjJkrSBygvnZM",
+  },
   robots: {
     index: true,
     follow: true,
