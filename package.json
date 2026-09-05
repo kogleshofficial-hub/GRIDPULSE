@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "allowScripts": {
-    "unrs-resolver": true
+    "unrs-resolver@1.12.2": true
   },
   "scripts": {
     "dev": "next dev",
