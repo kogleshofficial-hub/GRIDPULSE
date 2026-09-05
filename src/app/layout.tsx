@@ -2,40 +2,93 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 
+const siteUrl = "https://gridpulse-three.vercel.app";
+
 export const metadata: Metadata = {
-  title: "GRIDPULSE // Global Grid Telemetry",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "GRIDPULSE — Evidence-First Grid Intelligence",
+    template: "%s · GRIDPULSE",
+  },
   description:
-    "Evidence-first infrastructure intelligence: crowd telemetry, validation, and explainable grid risk signals.",
+    "GRIDPULSE is an evidence-first infrastructure intelligence control plane for observing, validating, predicting, and explaining grid disruption signals.",
+  applicationName: "GRIDPULSE",
   authors: [{ name: "Koglesh R. Murugan" }],
   creator: "Koglesh R. Murugan",
-  applicationName: "GRIDPULSE",
+  publisher: "Koglesh R. Murugan",
   keywords: [
     "GRIDPULSE",
+    "grid intelligence",
     "grid telemetry",
     "infrastructure intelligence",
     "outage validation",
     "power grid monitoring",
+    "anomaly detection",
+    "Azure Machine Learning",
+    "Microsoft Foundry",
+    "infrastructure resilience",
   ],
-  robots: { index: true, follow: true },
+  category: "technology",
+  alternates: { canonical: "/" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   openGraph: {
-    title: "GRIDPULSE // Global Grid Telemetry",
+    title: "GRIDPULSE — Evidence-First Grid Intelligence",
     description:
-      "Evidence-first infrastructure intelligence for observing, validating, and explaining grid disruption signals.",
-    type: "website",
+      "Observe. Validate. Predict. Explain. An evidence-first control plane for grid disruption signals.",
+    url: siteUrl,
     siteName: "GRIDPULSE",
+    type: "website",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GRIDPULSE // Global Grid Telemetry",
+    title: "GRIDPULSE — Evidence-First Grid Intelligence",
     description:
-      "Evidence-first infrastructure intelligence for observing, validating, and explaining grid disruption signals.",
+      "An evidence-first control plane for observing, validating, predicting, and explaining grid disruption signals.",
   },
+};
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      name: "GRIDPULSE",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: siteUrl,
+      description:
+        "Evidence-first infrastructure intelligence for observing, validating, predicting, and explaining grid disruption signals.",
+      author: { "@type": "Person", name: "Koglesh R. Murugan" },
+      isAccessibleForFree: true,
+    },
+    {
+      "@type": "WebSite",
+      name: "GRIDPULSE",
+      url: siteUrl,
+      description: "Evidence-first grid intelligence control plane.",
+    },
+  ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         {children}
         <Link
           href="/judge"
