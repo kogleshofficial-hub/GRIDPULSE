@@ -11,7 +11,7 @@ type AIHealth = { ok: boolean; services: { azureMachineLearning: boolean; micros
 
 const EMPTY: DashboardPayload = { ok: true, generatedAt: new Date(0).toISOString(), summary: { reports: 0, validated: 0, pending: 0, regions: 0, last_report: null, active_regions: 0 }, events: [], regions: [] };
 
-function project(lat: number, lon: number) { return { x: Math.max(2, Math.min(98, ((lon + 180) / 360) * 100)), y: Math.max(5, Math.min(95, ((90 - lat) / 180) * 100)) }; }
+function project(lat: number, lon: number) { return { x: Math.max(3, Math.min(97, ((lon + 180) / 360) * 100)), y: Math.max(7, Math.min(93, ((90 - lat) / 180) * 100)) }; }
 function formatTime(value: string | null) { if (!value) return "—"; return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(new Date(value)) + " UTC"; }
 function statusLabel(value: string) { return value.replace(/^./, (c) => c.toUpperCase()); }
 
@@ -30,44 +30,26 @@ export default function Dashboard({ initial }: { initial: DashboardPayload }) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/dashboard?ts=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
-      });
+      const response = await fetch(`/api/dashboard?ts=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
       if (!response.ok) throw new Error("dashboard unavailable");
       const next = (await response.json()) as DashboardPayload;
       setData(next);
       setOffline(false);
       setSelected((current) => current && next.events.some((event) => event.id === current.id) ? next.events.find((event) => event.id === current.id) ?? current : current);
-    } catch {
-      setOffline(true);
-    } finally {
-      setLoading(false);
-    }
+    } catch { setOffline(true); } finally { setLoading(false); }
   }, []);
 
   const refreshAIHealth = useCallback(async () => { try { const response = await fetch("/api/intelligence/health", { cache: "no-store" }); const body = (await response.json()) as AIHealth; setAiHealth(body); } catch { setAiHealth(null); } }, []);
   const aiReady = aiHealth?.ok === true;
-
   const analyze = useCallback(async () => {
     if (!selected || !aiReady) return;
     setAnalyzing(true); setAiError("");
-    try {
-      const response = await fetch(`/api/intelligence/${selected.id}`, { method: "POST" });
-      const body = await response.json() as IntelligenceResponse & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "intelligence_unavailable");
-      setIntelligence(body);
-      refreshAIHealth();
-    } catch (error) {
-      setAiError(error instanceof Error ? error.message.replaceAll("_", " ") : "AI analysis unavailable");
-    } finally { setAnalyzing(false); }
+    try { const response = await fetch(`/api/intelligence/${selected.id}`, { method: "POST" }); const body = await response.json() as IntelligenceResponse & { error?: string }; if (!response.ok) throw new Error(body.error ?? "intelligence_unavailable"); setIntelligence(body); refreshAIHealth(); }
+    catch (error) { setAiError(error instanceof Error ? error.message.replaceAll("_", " ") : "AI analysis unavailable"); }
+    finally { setAnalyzing(false); }
   }, [selected, refreshAIHealth, aiReady]);
 
-  useEffect(() => {
-    refresh();
-    const timer = window.setInterval(refresh, 15000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
+  useEffect(() => { refresh(); const timer = window.setInterval(refresh, 15000); return () => window.clearInterval(timer); }, [refresh]);
   useEffect(() => { refreshAIHealth(); }, [refreshAIHealth]);
 
   const validatedRate = data.summary.reports ? Math.round((data.summary.validated / data.summary.reports) * 100) : 0;
@@ -80,18 +62,19 @@ export default function Dashboard({ initial }: { initial: DashboardPayload }) {
       <section className="hero-row"><div><div className="eyebrow">INFRASTRUCTURE OBSERVABILITY / LIVE CONTROL PLANE</div><h1>See disruption before it becomes a blind spot.</h1><p className="hero-copy">GRIDPULSE correlates distributed telemetry, validates independent observations, and prepares the evidence layer for AI-powered grid intelligence.</p></div><a className="report-button" href="/report">+ REPORT EVENT</a></section>
       <section className="grid metrics" aria-label="Gridpulse metrics"><article className="panel metric-card"><div className="label">TELEMETRY REPORTS</div><div className="value">{data.summary.reports.toLocaleString()}</div><div className="metric-note">all ingested observations</div></article><article className="panel metric-card"><div className="label">VALIDATED EVENTS</div><div className="value ok">{data.summary.validated.toLocaleString()}</div><div className="metric-note">{validatedRate}% of reports corroborated</div></article><article className="panel metric-card"><div className="label">PENDING SIGNALS</div><div className="value warn">{data.summary.pending.toLocaleString()}</div><div className="metric-note">awaiting corroboration</div></article><article className="panel metric-card"><div className="label">ACTIVE REGIONS</div><div className="value">{data.summary.active_regions.toLocaleString()}</div><div className="metric-note">regions reporting in 24h</div></article></section>
 
-      <section className="panel" aria-labelledby="decision-path-title">
-        <div className="panel-heading"><div><div className="label">DECISION PATH</div><div className="panel-title" id="decision-path-title">OBSERVED → VALIDATED → PREDICTED</div></div><div className="live-chip">EVIDENCE BOUNDARY</div></div>
-        <div className="contract-grid" aria-label="GRIDPULSE evidence stages">
-          <div><span>01 / OBSERVED</span><strong>TELEMETRY REPORT</strong><b className={selected ? "ok" : "warn"}>{selected ? "SELECTED" : "SELECT A SIGNAL"}</b></div>
-          <div><span>02 / VALIDATED</span><strong>POSTGRESQL CORROBORATION</strong><b className={selectedValidated ? "ok" : "warn"}>{selected ? statusLabel(selected.validation_status).toUpperCase() : "NOT INSPECTED"}</b></div>
-          <div><span>03 / PREDICTED</span><strong>AZURE MACHINE LEARNING</strong><b className={intelligence ? "ok" : "warn"}>{intelligence ? "MODEL OUTPUT" : aiReady ? "READY TO RUN" : "CONFIG REQUIRED"}</b></div>
-          <div><span>04 / EXPLAINED</span><strong>MICROSOFT FOUNDRY</strong><b className={intelligence ? "ok" : "warn"}>{intelligence ? "GROUNDED OUTPUT" : "WAITING"}</b></div>
-        </div>
-        <p className="metric-note" style={{ marginTop: 12 }}>Observed data is evidence. Validation is corroboration. AI output is a prediction and explanation—not confirmation.</p>
-      </section>
+      <section className="panel" aria-labelledby="decision-path-title"><div className="panel-heading"><div><div className="label">DECISION PATH</div><div className="panel-title" id="decision-path-title">OBSERVED → VALIDATED → PREDICTED</div></div><div className="live-chip">EVIDENCE BOUNDARY</div></div><div className="contract-grid" aria-label="GRIDPULSE evidence stages"><div><span>01 / OBSERVED</span><strong>TELEMETRY REPORT</strong><b className={selected ? "ok" : "warn"}>{selected ? "SELECTED" : "SELECT A SIGNAL"}</b></div><div><span>02 / VALIDATED</span><strong>POSTGRESQL CORROBORATION</strong><b className={selectedValidated ? "ok" : "warn"}>{selected ? statusLabel(selected.validation_status).toUpperCase() : "NOT INSPECTED"}</b></div><div><span>03 / PREDICTED</span><strong>AZURE MACHINE LEARNING</strong><b className={intelligence ? "ok" : "warn"}>{intelligence ? "MODEL OUTPUT" : aiReady ? "READY TO RUN" : "CONFIG REQUIRED"}</b></div><div><span>04 / EXPLAINED</span><strong>MICROSOFT FOUNDRY</strong><b className={intelligence ? "ok" : "warn"}>{intelligence ? "GROUNDED OUTPUT" : "WAITING"}</b></div></div><p className="metric-note" style={{ marginTop: 12 }}>Observed data is evidence. Validation is corroboration. AI output is a prediction and explanation—not confirmation.</p></section>
 
-      <section className="control-grid"><article className="panel map-panel"><div className="panel-heading"><div><div className="label">TELEMETRY SURFACE</div><div className="panel-title">GLOBAL OBSERVATION FIELD</div></div><div className="live-chip"><span className="pulse-dot" /> AUTO-REFRESH 15S</div></div><div className="map" role="img" aria-label="Global telemetry map. Select a telemetry point to inspect its validation state."><div className="map-grid" aria-hidden="true" /><div className="equator" aria-hidden="true" />{data.events.map((event, index) => { const point = project(event.latitude, event.longitude); const priorAtSamePoint = data.events.slice(0, index).filter((other) => Math.abs(other.latitude - event.latitude) < 0.000001 && Math.abs(other.longitude - event.longitude) < 0.000001).length; const angle = priorAtSamePoint === 0 ? 0 : (priorAtSamePoint - 1) * (Math.PI / 3); const radius = priorAtSamePoint === 0 ? 0 : 14; const offsetX = priorAtSamePoint === 0 ? 0 : Math.cos(angle) * radius; const offsetY = priorAtSamePoint === 0 ? 0 : Math.sin(angle) * radius; return <button key={event.id} className={`node node-${event.status} ${selected?.id === event.id ? "node-selected" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%`, marginLeft: `${offsetX}px`, marginTop: `${offsetY}px` }} onClick={() => selectEvent(event)} aria-label={`${statusLabel(event.status)} report in ${event.region_name}, ${Math.round(Number(event.confidence) * 100)} percent confidence`} aria-pressed={selected?.id === event.id} />; })}{data.events.length === 0 && <div className="map-empty"><span>NO TELEMETRY IN CURRENT DATASET</span><small>Connect PostgreSQL and ingest a report to activate the surface.</small></div>}<div className="map-legend"><span><i className="legend-dot outage" /> OUTAGE</span><span><i className="legend-dot degraded" /> DEGRADED</span><span><i className="legend-dot restored" /> RESTORED</span></div></div></article>
+      <section className="control-grid"><article className="panel map-panel"><div className="panel-heading"><div><div className="label">TELEMETRY SURFACE</div><div className="panel-title">GLOBAL OBSERVATION FIELD</div></div><div className="live-chip"><span className="pulse-dot" /> {data.events.length} LIVE POINT{data.events.length === 1 ? "" : "S"} · 15S</div></div><div className="map" role="img" aria-label="Global telemetry map. Select a telemetry point to inspect its validation state."><div className="map-grid" aria-hidden="true" /><div className="equator" aria-hidden="true" />{data.events.map((event, index) => {
+        const point = project(event.latitude, event.longitude);
+        const samePointIndexes = data.events.map((other, otherIndex) => Math.abs(other.latitude - event.latitude) < 0.000001 && Math.abs(other.longitude - event.longitude) < 0.000001 ? otherIndex : -1).filter((value) => value >= 0);
+        const duplicateIndex = samePointIndexes.indexOf(index);
+        const duplicateCount = samePointIndexes.length;
+        const radius = duplicateCount > 1 ? 16 : 0;
+        const angle = duplicateCount > 1 ? (Math.PI * 2 * duplicateIndex) / duplicateCount : 0;
+        const offsetX = Math.cos(angle) * radius;
+        const offsetY = Math.sin(angle) * radius;
+        return <button key={event.id} className={`node node-${event.status} ${selected?.id === event.id ? "node-selected" : ""}`} style={{ left: `${point.x}%`, top: `${point.y}%`, transform: `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))` }} onClick={() => selectEvent(event)} aria-label={`${statusLabel(event.status)} report in ${event.region_name}, ${Math.round(Number(event.confidence) * 100)} percent confidence`} aria-pressed={selected?.id === event.id} />;
+      })}{data.events.length === 0 && <div className="map-empty"><span>NO TELEMETRY IN CURRENT DATASET</span><small>Connect PostgreSQL and ingest a report to activate the surface.</small></div>}<div className="map-legend"><span><i className="legend-dot outage" /> OUTAGE</span><span><i className="legend-dot degraded" /> DEGRADED</span><span><i className="legend-dot restored" /> RESTORED</span></div></div></article>
         <aside className="panel incident-panel" aria-live="polite" aria-label="Selected telemetry evidence"><div className="label">SELECTED SIGNAL</div>{selected ? <><div className="incident-status"><span className={`status-badge ${selected.status}`}>{statusLabel(selected.status)}</span><span className="confidence">{Math.round(Number(selected.confidence) * 100)}% CONFIDENCE</span></div><h2>{selected.region_name}</h2><div className="coordinate">{selected.latitude.toFixed(4)}°, {selected.longitude.toFixed(4)}°</div><dl className="evidence-list"><div><dt>VALIDATION</dt><dd>{statusLabel(selected.validation_status)}</dd></div><div><dt>SOURCE</dt><dd>{statusLabel(selected.source)}</dd></div><div><dt>OBSERVED</dt><dd>{formatTime(selected.observed_at)}</dd></div></dl><div className="truth-box"><span className="label">TRUTH BOUNDARY</span><p>AI never converts a prediction into a confirmed outage. Confirmation comes from the telemetry validation layer.</p></div><button className="ai-button" onClick={analyze} disabled={analyzing || !aiReady} aria-describedby="ai-action-help">{!aiHealth ? "CHECKING AI PIPELINE…" : analyzing ? "RUNNING INTELLIGENCE…" : aiReady ? "RUN AI ANALYSIS" : "AI PIPELINE NOT CONFIGURED"}</button><small id="ai-action-help" className="metric-note" style={{ display: "block", marginTop: 7 }}>{aiReady ? "Runs Azure ML risk scoring, then sends only structured evidence + prediction to Microsoft Foundry." : "No simulation is used. Configure both Microsoft AI services before running analysis."}</small>{aiError && <div className="form-message error" role="alert">{aiError}</div>}{intelligence && <div className="ai-result" aria-label="AI prediction and grounded explanation"><div className="ai-result-head"><span className="ai-mark small">AI</span><div><div className="label">MODEL OUTPUT</div><strong>{Math.round(intelligence.prediction.riskScore * 100)}% RISK / {intelligence.prediction.horizonMinutes} MIN</strong></div></div><p>{intelligence.explanation}</p><small>{intelligence.prediction.modelVersion} · {Math.round(intelligence.prediction.confidence * 100)}% model confidence · generated {formatTime(intelligence.generatedAt)}</small></div>}</> : <div className="empty-detail"><div className="empty-icon">◎</div><strong>Select a telemetry point</strong><p>Inspect location, source, confidence, and validation evidence without leaving the control plane.</p></div>}</aside></section>
       <section className="lower-grid"><article className="panel"><div className="panel-heading"><div><div className="label">EVENT STREAM</div><div className="panel-title">LATEST OBSERVATIONS</div></div><button className="ghost-button" onClick={refresh} disabled={loading}>{loading ? "SYNCING…" : "SYNC NOW"}</button></div>{data.events.length ? <div className="event-list">{data.events.slice(0, 8).map((event) => <button className="event-row" key={event.id} onClick={() => selectEvent(event)}><span className={`event-marker ${event.status}`} aria-hidden="true" /><span className="event-main"><strong>{event.region_name}</strong><small>{statusLabel(event.source)} · {formatTime(event.observed_at)}</small></span><span className={`event-state ${event.validation_status}`}>{Math.round(Number(event.confidence) * 100)}%</span></button>)}</div> : <div className="table-empty">No observations have been ingested yet.</div>}</article><article className="panel"><div className="label">REGIONAL COVERAGE</div><div className="panel-title coverage-title">OBSERVATION CLUSTERS</div>{data.regions.length ? <div className="region-list">{data.regions.slice(0, 6).map((region) => <div className="region-row" key={region.id}><div><strong>{region.name}</strong><small>{region.reports.toLocaleString()} reports · {region.validated.toLocaleString()} validated</small></div><span>{region.reports ? Math.round((region.validated / region.reports) * 100) : 0}%</span></div>)}</div> : <div className="table-empty">No active region clusters configured.</div>}</article></section>
       <section className="intelligence-strip"><div><span className="ai-mark">AI</span><div><div className="label">INTELLIGENCE LAYER</div><strong>AZURE ML + MICROSOFT FOUNDRY</strong></div></div><p>Predictions remain separate from confirmed events. {aiHealth ? aiReady ? "Both Microsoft AI services are configured for the live intelligence workflow." : "The live intelligence workflow is waiting for its Microsoft AI environment configuration." : "Checking the Microsoft AI integration status…"}</p></section>
