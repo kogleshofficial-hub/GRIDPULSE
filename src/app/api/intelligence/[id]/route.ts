@@ -5,21 +5,7 @@ import { explainWithFoundry, scoreWithAzureML, type IntelligenceFeatures } from 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type EventEvidence = {
-  id: string;
-  region_name: string;
-  status: string;
-  observed_at: string;
-  nearby_reports: number;
-  independent_reporters: number;
-  corroboration_confidence: number;
-  report_rate: number;
-  spatial_density: number;
-  outage_restoration_ratio: number;
-  regional_spread_per_minute: number;
-  minutes_since_first_report: number;
-  historical_baseline_ratio: number;
-};
+type EventEvidence = { id: string; region_name: string; status: string; observed_at: string; nearby_reports: number; independent_reporters: number; corroboration_confidence: number; report_rate: number; spatial_density: number; outage_restoration_ratio: number; regional_spread_per_minute: number; minutes_since_first_report: number; historical_baseline_ratio: number };
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -43,13 +29,12 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
 
     const prediction = await scoreWithAzureML(features);
     const explanation = await explainWithFoundry({ region: event.region_name, status: event.status, features, prediction });
-
-    await query(
-      "INSERT INTO gridpulse.ai_predictions(region_id,model_version,horizon_minutes,risk_score,collapse_velocity,confidence,explanation) SELECT region_id,$2,$3,$4,$5,$6,$7 FROM gridpulse.telemetry_reports WHERE id=$1",
+    const stored = await query<{ store_prediction: string }>(
+      "SELECT gridpulse.store_prediction($1,$2,$3,$4,$5,$6,$7) AS store_prediction",
       [id, prediction.modelVersion, prediction.horizonMinutes, prediction.riskScore, prediction.collapseVelocity, prediction.confidence, explanation],
     );
 
-    return NextResponse.json({ ok: true, eventId: id, prediction, explanation, generatedAt: new Date().toISOString() });
+    return NextResponse.json({ ok: true, eventId: id, prediction, explanation, predictionId: stored.rows[0]?.store_prediction ?? null, generatedAt: new Date().toISOString() });
   } catch (error) {
     console.error("GRIDPULSE intelligence analysis failed", error);
     return NextResponse.json({ error: "intelligence_unavailable" }, { status: 503 });
