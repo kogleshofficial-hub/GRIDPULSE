@@ -10,7 +10,7 @@ const architecture = [
   ["01", "Human telemetry", "Next.js + PostgreSQL", "Reports enter through a typed ingestion boundary with coordinate, time, status, source, and region validation."],
   ["02", "Evidence validation", "PostgreSQL validation engine", "Independent nearby observations are corroborated before a signal can become a validated event."],
   ["03", "AI risk scoring", "Azure Machine Learning", "Structured telemetry features are scored for operational risk, confidence, and change velocity."],
-  ["04", "Grounded explanation", "Azure AI Foundry / Azure OpenAI", "The explanation layer receives structured evidence and prediction output, with an explicit instruction not to invent facts."],
+  ["04", "Grounded explanation", "Microsoft Foundry / Azure OpenAI", "The explanation layer receives structured evidence and prediction output, with an explicit instruction not to invent facts."],
   ["05", "Operator control plane", "GRIDPULSE dashboard", "Humans see the observation, validation state, model output, confidence, and provenance in one surface."],
 ];
 
@@ -21,6 +21,13 @@ const principles = [
   ["Human-readable by design", "Confidence, validation, source, timestamps, and coordinates remain visible to the operator."],
   ["Built for iteration", "The architecture exposes measurable signals that can be tested, evaluated, and improved over time."],
   ["Accessible control", "Keyboard-focusable controls, semantic regions, readable status language, and responsive layouts are built into the interface."],
+];
+
+const proofPoints = [
+  ["LIVE", "Production control plane", "The judge can inspect the deployed system rather than a static mockup."],
+  ["REAL", "Server-side AI contract", "The intelligence route calls Azure ML first, then Foundry with bounded evidence and prediction data."],
+  ["SAFE", "Fail-closed readiness", "The AI action stays unavailable until both required Microsoft AI services are configured."],
+  ["TRACE", "Evidence boundary", "Observed telemetry, validation state, prediction confidence, model version, and generation time remain distinguishable."],
 ];
 
 export default function JudgePage() {
@@ -51,6 +58,16 @@ export default function JudgePage() {
           </div>
         </section>
 
+        <section className={styles.proofBar} aria-label="Implementation proof">
+          {proofPoints.map(([label, title, detail]) => (
+            <article key={label}>
+              <span>{label}</span>
+              <strong>{title}</strong>
+              <p>{detail}</p>
+            </article>
+          ))}
+        </section>
+
         <section className={styles.section}>
           <div className={styles.kicker}>01 / THE PROBLEM</div>
           <div className={styles.two}>
@@ -79,9 +96,10 @@ export default function JudgePage() {
           <div className={styles.kicker}>03 / MICROSOFT AI IMPLEMENTATION</div>
           <div className={styles.aiGrid}>
             <article className={styles.aiCard}><div className={styles.service}>AI / 01</div><h3>Azure Machine Learning</h3><p>Scores structured telemetry features for operational risk, model confidence, and collapse velocity over a defined prediction horizon.</p><span>REQUIRED FOR INTELLIGENCE SCORING</span></article>
-            <article className={styles.aiCard}><div className={styles.service}>AI / 02</div><h3>Azure AI Foundry / Azure OpenAI</h3><p>Converts structured evidence and model results into a concise operational explanation while explicitly constraining the model to supplied evidence.</p><span>REQUIRED FOR GROUNDED EXPLANATION</span></article>
+            <article className={styles.aiCard}><div className={styles.service}>AI / 02</div><h3>Microsoft Foundry / Azure OpenAI</h3><p>Converts structured evidence and model results into a concise operational explanation while explicitly constraining the model to supplied evidence.</p><span>REQUIRED FOR GROUNDED EXPLANATION</span></article>
           </div>
-          <div className={styles.proof}><span>WHY TWO AI SERVICES MATTER</span><p>Removing either service breaks a distinct part of the intelligence workflow: without Azure ML there is no model risk score; without the Foundry/Azure OpenAI explanation layer there is no grounded natural-language interpretation for the operator.</p></div>
+          <div className={styles.proof}><span>WHY TWO AI SERVICES MATTER</span><p>Removing either service breaks a distinct part of the intelligence workflow: without Azure ML there is no model risk score; without the Foundry explanation layer there is no grounded natural-language interpretation for the operator.</p></div>
+          <div className={styles.liveProof}><div><span className={styles.liveDot} aria-hidden="true" /> IMPLEMENTATION STATUS</div><strong>READY TO VERIFY IN THE LIVE CONTROL PLANE</strong><p>Open a telemetry signal and use the intelligence action to inspect the complete server-side path. If either Microsoft AI service is not configured, GRIDPULSE says so instead of simulating a successful result.</p><Link href="/" className={styles.textLink}>VERIFY THE WORKFLOW →</Link></div>
         </section>
 
         <section className={styles.section}>
