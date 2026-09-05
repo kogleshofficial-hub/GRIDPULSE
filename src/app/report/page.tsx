@@ -70,11 +70,13 @@ export default function ReportPage() {
     if (state === "sending" || state === "locating") return;
     setState("sending");
     setMessage("");
-    const form = new FormData(event.currentTarget);
-    const region = String(form.get("region") ?? "").trim() || "Auto-detected";
-    const latitude = Number(form.get("latitude"));
-    const longitude = Number(form.get("longitude"));
-    const status = String(form.get("status"));
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const region = String(formData.get("region") ?? "").trim() || "Auto-detected";
+    const latitude = Number(formData.get("latitude"));
+    const longitude = Number(formData.get("longitude"));
+    const status = String(formData.get("status"));
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
       setState("error");
@@ -110,7 +112,6 @@ export default function ReportPage() {
       setMessage(`Observation accepted. Validation state: ${result.report?.validation_status ?? "pending"}.`);
       setFormValues(initialForm);
       setLocationAccuracy(null);
-      event.currentTarget.reset();
     } catch (error) {
       setState("error");
       setMessage(messageForError(error));
