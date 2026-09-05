@@ -17,19 +17,32 @@ export type IntelligenceResult = {
   horizonMinutes: number;
 };
 
+const REQUEST_TIMEOUT_MS = 12_000;
+
 function required(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
   return value;
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function scoreWithAzureML(features: IntelligenceFeatures): Promise<IntelligenceResult> {
   const endpoint = required("AZURE_ML_SCORING_URI");
   const key = required("AZURE_ML_ENDPOINT_KEY");
   const modelVersion = process.env.AZURE_ML_MODEL_VERSION ?? "gridpulse-anomaly-v1";
-  const horizonMinutes = Number(process.env.AZURE_ML_HORIZON_MINUTES ?? 30);
+  const configuredHorizon = Number(process.env.AZURE_ML_HORIZON_MINUTES ?? 30);
+  const horizonMinutes = Number.isFinite(configuredHorizon) ? Math.max(1, Math.min(1440, Math.round(configuredHorizon))) : 30;
 
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -104,7 +117,7 @@ export async function explainWithFoundry(input: {
   const model = required("AZURE_OPENAI_MODEL");
 
   const evidence = JSON.stringify(input, null, 2);
-  const response = await fetch(`${endpoint}/openai/v1/responses`, {
+  const response = await fetchWithTimeout(`${endpoint}/openai/v1/responses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -113,11 +126,12 @@ export async function explainWithFoundry(input: {
     body: JSON.stringify({
       model,
       temperature: 0.1,
+      max_output_tokens: 700,
       input: [
         {
           role: "system",
           content:
-            "You are the GRIDPULSE evidence explainer. Never invent outages, causes, affected customers, or measurements. Treat prediction as prediction, not confirmation. Explain only the supplied structured evidence. Return a concise operational summary followed by three evidence bullets.",
+            "You are the GRIDPULSE evidence explainer. Never invent outages, causes, affected customers, or measurements. Treat prediction as prediction, not confirmation. Explain only the supplied structured evidence. Return a concise operational summary followed by three evidence bullets. If evidence is insufficient, say so explicitly.",
         },
         {
           role: "user",
