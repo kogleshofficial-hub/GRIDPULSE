@@ -64,6 +64,7 @@ export async function GET() {
           active_regions: 0,
         };
 
+    // Keep the database result explicitly typed so the production build does not infer `any`.
     const events: EventRow[] = eventsResult.rows;
     const normalizedEvents = events.map((event: EventRow) => ({
       ...event,
@@ -71,7 +72,7 @@ export async function GET() {
       confidence: Number(event.confidence),
     }));
 
-    const regions = regionsResult.rows.map((region) => ({
+    const regions = regionsResult.rows.map((region: RegionRow) => ({
       ...region,
       reports: integer(region.reports),
       validated: integer(region.validated),
