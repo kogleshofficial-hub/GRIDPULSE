@@ -1,5 +1,30 @@
+import Dashboard from "@/components/dashboard";
 import { query } from "@/lib/db";
-export const dynamic="force-dynamic";
-type Summary={reports:number;validated:number;regions:number;lastReport:string|null};
-async function getSummary():Promise<Summary>{try{const r=await query<Summary>("SELECT reports::int,validated::int,regions::int,last_report::text AS \"lastReport\" FROM gridpulse.dashboard_summary()");return r.rows[0]??{reports:0,validated:0,regions:0,lastReport:null}}catch{return {reports:0,validated:0,regions:0,lastReport:null}}}
-export default async function Home(){const s=await getSummary();return <div className="shell"><header className="top"><div className="brand">GRIDPULSE // CONTROL</div><div className="live">● SYSTEM ONLINE</div></header><main className="main"><section className="grid"><div className="panel"><div className="label">TELEMETRY REPORTS</div><div className="value">{s.reports.toLocaleString()}</div></div><div className="panel"><div className="label">VALIDATED EVENTS</div><div className="value ok">{s.validated.toLocaleString()}</div></div><div className="panel"><div className="label">REGION CLUSTERS</div><div className="value">{s.regions.toLocaleString()}</div></div></section><section className="panel map"><div className="label">GEOSPATIAL TELEMETRY SURFACE // DATABASE LAYER</div></section><section className="panel"><div className="label">NETWORK STATUS</div><table><thead><tr><th>METRIC</th><th>VALUE</th><th>STATE</th></tr></thead><tbody><tr><td>LAST OBSERVED REPORT</td><td>{s.lastReport??"—"}</td><td className={s.lastReport?"ok":"warn"}>{s.lastReport?"INGESTED":"NO DATA"}</td></tr><tr><td>VALIDATION ENGINE</td><td>POSTGRESQL</td><td className="ok">READY</td></tr><tr><td>AI PIPELINE</td><td>AZURE</td><td className="warn">AWAITING TELEMETRY</td></tr></tbody></table></section></main><footer className="footer">GRIDPULSE // NO FABRICATED LIVE TELEMETRY // UTC DATA MODEL</footer></div>}
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+type Summary = { reports: number; validated: number; pending: number; regions: number; last_report: string | null; active_regions: number };
+type EventRow = { id: string; latitude: number; longitude: number; status: string; source: string; region_name: string; observed_at: string; confidence: number; validation_status: string };
+type RegionRow = { id: string; name: string; center_lat: number; center_lon: number; reports: number; validated: number; latest_report: string | null };
+
+const emptySummary: Summary = { reports: 0, validated: 0, pending: 0, regions: 0, last_report: null, active_regions: 0 };
+
+async function getInitialData() {
+  try {
+    const [summaryResult, eventsResult, regionsResult] = await Promise.all([
+      query<Summary>("SELECT * FROM gridpulse.dashboard_summary()"),
+      query<EventRow>("SELECT * FROM gridpulse.dashboard_events($1)", [150]),
+      query<RegionRow>("SELECT * FROM gridpulse.dashboard_regions()"),
+    ]);
+    return { ok: true, generatedAt: new Date().toISOString(), summary: summaryResult.rows[0] ?? emptySummary, events: eventsResult.rows, regions: regionsResult.rows };
+  } catch (error) {
+    console.error("GRIDPULSE initial dashboard load failed", error);
+    return { ok: false, generatedAt: new Date().toISOString(), summary: emptySummary, events: [], regions: [] };
+  }
+}
+
+export default async function Home() {
+  const initial = await getInitialData();
+  return <Dashboard initial={initial} />;
+}
